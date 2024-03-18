@@ -1,6 +1,8 @@
 // UserController.java
 package com.quizSystem.controller;
 
+import java.util.List;
+
 import javax.servlet.http.HttpSession;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
@@ -14,6 +16,8 @@ import com.quizSystem.entity.Admin;
 import com.quizSystem.entity.User;
 import com.quizSystem.service.AdminService;
 import com.quizSystem.service.UserService;
+
+
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 
@@ -129,7 +133,40 @@ public class UserController {
         } else {
             // If the user type is not specified in the session, return an error or handle it accordingly
             redirectAttributes.addFlashAttribute("error", "User type not specified.");
-            return "redirect:/log"; // Redirect to login page
+            return "redirect:/ProfileUpdate"; // Redirect to login page
+        }
+    }
+
+
+    @GetMapping("/displayUsers")
+    public String displayUsers(Model model) {
+        List<User> users = userService.getAllUsers(); // Assuming getAllUsers() retrieves all users from the database
+        model.addAttribute("users", users);
+        return "manageUser"; // Assuming your Thymeleaf template is named "manageUser.html"
+    }
+
+
+    @PostMapping("/update_user_status")
+    public String updateStatus(@RequestParam("email") String email,
+                               @RequestParam("action") String action,
+                               RedirectAttributes redirectAttributes) {
+        try {
+            User user = userService.findUserByEmail(email);
+            if (user != null) {
+                if (action.equals("activate")) {
+                    user.setStatus("active");
+                } else if (action.equals("deactivate")) {
+                    user.setStatus("inactive");
+                }
+                userService.saveOrUpdate(user);
+                return "redirect:/displayUsers";
+            } else {
+                redirectAttributes.addFlashAttribute("error", "User not found with email: " + email);
+                return "redirect:/manageUsers";
+            }
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("error", "An error occurred: " + e.getMessage());
+            return "redirect:/manageUsers";
         }
     }
 
