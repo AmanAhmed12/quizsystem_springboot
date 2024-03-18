@@ -14,12 +14,19 @@ import com.quizSystem.entity.Admin;
 import com.quizSystem.entity.User;
 import com.quizSystem.service.AdminService;
 import com.quizSystem.service.UserService;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+
+
+
 
 @Controller
 public class UserController {
 
      
    
+     // Inject BCryptPasswordEncoder bean into your controller or service
+    @Autowired
+    private BCryptPasswordEncoder passwordEncoder;
 
     @Autowired
     private UserService userService;
@@ -110,44 +117,158 @@ public class UserController {
         return "logout";
     }
 
-    
 
-    @PostMapping("/userLogin")
-public String loginUser(@ModelAttribute("user") User user, HttpSession session,
-        RedirectAttributes redirectAttributes) {
-    String email = user.getEmail();
+    @GetMapping("/closeupdate")
+    public String closeUpdate(HttpSession session, RedirectAttributes redirectAttributes) {
+        Object loggedInUser = session.getAttribute("loggedInUser");
 
-    // Check if the user exists in the student_details table
-    User student = userService.findUserByEmail(email);
-
-    // If not found in student_details, check in admin_details table
-    if (student == null) {
-        Admin adminData = adminService.findAdminByEmail(email);
-        if (adminData != null && user.getPassword().equals(adminData.getPassword())
-                && adminData.getStatus().equals("active")) {
-            adminData.setStatus("loggedin");
-            adminService.saveOrUpdate(adminData);
-            session.setAttribute("loggedInUser", adminData); // Store admin data in session
+        if (loggedInUser instanceof User) {
+            return "redirect:/studentdashboard"; // Redirect to student dashboard
+        } else if (loggedInUser instanceof Admin) {
             return "redirect:/admindashboard"; // Redirect to admin dashboard
         } else {
-            // Add error message for incorrect credentials
-            redirectAttributes.addFlashAttribute("error", "Incorrect email or password.");
-            return "redirect:/log"; // Redirect to login page
-        }
-    } else {
-        // User found in student_details, check password and status
-        if (student.getPassword().equals(user.getPassword()) && student.getStatus().equals("active")) {
-            student.setStatus("loggedin");
-            userService.saveOrUpdate(student);
-            session.setAttribute("loggedInUser", student); // Store student data in session
-            return "redirect:/studentdashboard"; // Redirect to student dashboard
-        } else {
-            // Add error message for incorrect credentials or inactive status
-            redirectAttributes.addFlashAttribute("error", "Incorrect email or password.");
+            // If the user type is not specified in the session, return an error or handle it accordingly
+            redirectAttributes.addFlashAttribute("error", "User type not specified.");
             return "redirect:/log"; // Redirect to login page
         }
     }
+
+
+
+    
+
+    @PostMapping("/userLogin")
+    public String loginUser(@ModelAttribute("user") User user, HttpSession session,
+                            RedirectAttributes redirectAttributes) {
+        String email = user.getEmail();
+    
+        // Check if the user exists in the student_details table
+        User student = userService.findUserByEmail(email);
+    
+        // If not found in student_details, check in admin_details table
+        if (student == null) {
+            Admin adminData = adminService.findAdminByEmail(email);
+            if (adminData != null && passwordEncoder.matches(user.getPassword(), adminData.getPassword())
+                    && adminData.getStatus().equals("active")) {
+                adminData.setStatus("loggedin");
+                adminService.saveOrUpdate(adminData);
+                session.setAttribute("loggedInUser", adminData); // Store admin data in session
+                return "redirect:/admindashboard"; // Redirect to admin dashboard
+            } else {
+                // Add error message for incorrect credentials
+                redirectAttributes.addFlashAttribute("error", "Incorrect email or password.");
+                return "redirect:/log"; // Redirect to login page
+            }
+        } else {
+            // User found in student_details, check password and status
+            if (passwordEncoder.matches(user.getPassword(), student.getPassword()) && student.getStatus().equals("active")) {
+                student.setStatus("loggedin");
+                userService.saveOrUpdate(student);
+                session.setAttribute("loggedInUser", student); // Store student data in session
+                return "redirect:/studentdashboard"; // Redirect to student dashboard
+            } else {
+                // Add error message for incorrect credentials or inactive status
+                redirectAttributes.addFlashAttribute("error", "Incorrect email or password.");
+                return "redirect:/log"; // Redirect to login page
+            }
+        }
+    }
+    
+
+
+
+@PostMapping("/studentRegistration")
+public String studentRegistration(User user, String confirmpassword, RedirectAttributes redirectAttributes) {
+    try {
+        String password = user.getPassword();
+
+        // Validate password matching
+        if (!password.equals(confirmpassword)) {
+            redirectAttributes.addFlashAttribute("error", "Passwords do not match!");
+            return "redirect:/register";
+        }
+
+        // Check if a user with the same email already exists
+        User existingUserByEmail = userService.findUserByEmail(user.getEmail());
+        if (existingUserByEmail != null) {
+            redirectAttributes.addFlashAttribute("error", "Email is already registered!");
+            return "redirect:/register";
+        }
+
+        // Check if a user with the same index number already exists
+        User existingUserByIndexNo = userService.findUserByIndex(user.getIndexNo());
+        if (existingUserByIndexNo != null) {
+            redirectAttributes.addFlashAttribute("error", "Index number is already registered!");
+            return "redirect:/register";
+        }
+
+        // Set default status for newly registered users
+        user.setStatus("active");
+
+        // Hash the password before saving
+        String hashedPassword = passwordEncoder.encode(password);
+        user.setPassword(hashedPassword);
+
+        // Save the user object to the database using userService
+        userService.saveOrUpdate(user);
+
+        // Add a success message
+        redirectAttributes.addFlashAttribute("success", "Registration successful!");
+
+        // Redirect to login page after successful registration
+        return "redirect:/log";
+    } catch (Exception e) {
+        e.printStackTrace();
+        // Handle any exceptions that might occur during registration
+        redirectAttributes.addFlashAttribute("error", "Registration failed. Please try again.");
+        return "redirect:/register";
+    }
 }
+
+
+@PostMapping("/createAdminAccount")
+public String createAdminAccount(Admin admin, String confirmpassword, RedirectAttributes redirectAttributes) {
+    try {
+        String password = admin.getPassword();
+
+        // Validate password matching
+        if (!password.equals(confirmpassword)) {
+            redirectAttributes.addFlashAttribute("error", "Passwords do not match!");
+            return "redirect:/adminCreateAccount";
+        }
+
+        // Check if a user with the same email already exists
+        Admin existingUserByEmail = adminService.findAdminByEmail(admin.getEmail());
+        if (existingUserByEmail != null) {
+            redirectAttributes.addFlashAttribute("error", "Email is already registered!");
+            return "redirect:/adminCreateAccount";
+        }
+
+      
+        // Set default status for newly registered users
+        admin.setStatus("active");
+
+        // Hash the password before saving
+        String hashedPassword = passwordEncoder.encode(password);
+        admin.setPassword(hashedPassword);
+
+        // Save the user object to the database using userService
+        adminService.saveOrUpdate(admin);
+
+        // Add a success message
+        redirectAttributes.addFlashAttribute("success", "Admin Account created Successfully!!!");
+
+        // Redirect to login page after successful registration
+        return "redirect:/adminCreateAccount";
+    } catch (Exception e) {
+        e.printStackTrace();
+        // Handle any exceptions that might occur during registration
+        redirectAttributes.addFlashAttribute("error", "Registration failed. Please try again.");
+        return "redirect:/adminCreateAccount";
+    }
+}
+
+
 
     @PostMapping("/userLogout")
     public String logoutUser(@RequestParam(name = "confirmed", required = false) String confirmed,
@@ -198,16 +319,20 @@ public String passwordforgot(@RequestParam("email") String email,
                              @RequestParam("password") String password,
                              @RequestParam("confirmpassword") String confirmPassword,
                              RedirectAttributes redirectAttributes) {
+       
+                                
+    String hashedPassword = passwordEncoder.encode(password);
     
     // Check if the email exists in the admin_details table
     Admin admin = adminService.findAdminByEmail(email);
     if (admin != null) {
         // Update the password if the confirmation matches
         if (password.equals(confirmPassword)) {
-            admin.setPassword(password);
+           
+            admin.setPassword(hashedPassword);
             adminService.saveOrUpdate(admin);
            
-            redirectAttributes.addFlashAttribute("error", "Passwords updated successfully!!");
+            redirectAttributes.addFlashAttribute("success", "Passwords updated successfully!!");
             return "redirect:/log"; // Redirect to login page after successful password change
         } else {
             // Add error message for password mismatch
@@ -221,10 +346,10 @@ public String passwordforgot(@RequestParam("email") String email,
     if (student != null) {
         // Update the password if the confirmation matches
         if (password.equals(confirmPassword)) {
-            student.setPassword(password);
+            student.setPassword(hashedPassword);
             userService.saveOrUpdate(student);
            
-            redirectAttributes.addFlashAttribute("error", "Passwords updated successfully!!");
+            redirectAttributes.addFlashAttribute("success", "Passwords updated successfully!!");
             return "redirect:/log"; // Redirect to login page after successful password change
         } else {
             // Add error message for password mismatch
@@ -238,49 +363,6 @@ public String passwordforgot(@RequestParam("email") String email,
     return "redirect:/forgotpwd"; // Redirect back to forgot password page
 }
 
-@PostMapping("/studentRegistration")
-public String studentRegistration(User user, String confirmpassword, RedirectAttributes redirectAttributes) {
-    try {
-        String password = user.getPassword();
-
-        // Validate password matching
-        if (!password.equals(confirmpassword)) {
-            redirectAttributes.addFlashAttribute("error", "Passwords do not match!");
-            return "redirect:/register";
-        }
-
-        // Check if a user with the same email already exists
-        User existingUserByEmail = userService.findUserByEmail(user.getEmail());
-        if (existingUserByEmail != null) {
-            redirectAttributes.addFlashAttribute("error", "Email is already registered!");
-            return "redirect:/register";
-        }
-
-        // Check if a user with the same index number already exists
-        User existingUserByIndexNo = userService.findUserByIndex(user.getIndexNo());
-        if (existingUserByIndexNo != null) {
-            redirectAttributes.addFlashAttribute("error", "Index number is already registered!");
-            return "redirect:/register";
-        }
-
-        // Set default status for newly registered users
-        user.setStatus("active");
-
-        // Save the user object to the database using userService
-        userService.saveOrUpdate(user);
-
-        // Add a success message
-        redirectAttributes.addFlashAttribute("success", "Registration successful!");
-
-        // Redirect to login page after successful registration
-        return "redirect:/log";
-    } catch (Exception e) {
-        e.printStackTrace();
-        // Handle any exceptions that might occur during registration
-        redirectAttributes.addFlashAttribute("error", "Registration failed. Please try again.");
-        return "redirect:/register";
-    }
-}
 
 
   

@@ -68,13 +68,23 @@
                 
                 <form action="/createAdminAccount" method="post" class="p-3">
                     <h2 class=" head text-center mb-5 font-bold log mt-4">Create Account</h2>
+
+                        <!-- Display error message if it exists -->
+                        <div th:if="${error}" style="color: red;">
+                            <p th:text="${error}"></p>
+                        </div>
+                        
+                        <!-- Display success message if it exists -->
+                        <div th:if="${success}" style="color: green;">
+                            <p th:text="${success}"></p>
+                        </div>
                    
                     <div class="mb-4">
                         <input type="email" placeholder="Enter your email" name="email" required class="form-control">
                     </div>
 
                     <div class="mb-4">
-                        <input type="text" placeholder="Enter your Name" name="name" required class="form-control">
+                        <input type="text" placeholder="Enter your Name" name="username" required class="form-control">
                     </div>
 
                     <div class="mb-4">
