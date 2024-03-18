@@ -7,11 +7,16 @@ import com.quizSystem.repository.UserRepo;
 
 @Service
 public class UserService {
-@Autowired
+
+    @Autowired
     private UserRepo userRepo;
 
     public User findUserByEmail(String email) {
-        return userRepo.findById(email).orElse(null);
+        return userRepo.findByEmail(email);
+    }
+
+    public User findUserByIndex(String indexNo) {
+        return userRepo.findByIndexNo(indexNo);
     }
 
     public void saveOrUpdate(User user) {
